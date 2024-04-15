@@ -6,6 +6,7 @@ import numpy as np
 from pathlib import Path
 import tensorflow as tf
 from keras.layers import Input, Dense, GlobalMaxPooling2D
+from tensorflow.python.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping 
 import matplotlib.pyplot as plt
 from PIL import Image
 
@@ -53,6 +54,7 @@ val_ds = tf.keras.utils.image_dataset_from_directory(
 class_names = train_ds.class_names
 num_classes = len(class_names)
 print(class_names)
+input("Presione enter para continuar...")
 
 # Reducimos el tamaño del dataset para emular un escenario real donde no tenemos muchos datos
 train_ds = train_ds.take(200)
@@ -95,17 +97,35 @@ model.compile(
 )
 
 model.summary()
+input("Presione enter para continuar...")
+
+early_stopping = EarlyStopping(monitor="val_loss", patience=10, verbose=0, mode="min")
+checkpoint_acc = ModelCheckpoint(
+    "modelos-entrenados/model-e{epoch:02d}-loss{val_loss:.3f}-acc{val_accuracy:.3f}",
+    save_best_only=True,
+    monitor="val_accuracy",
+    initial_value_threshold=0.7,
+    mode="max",
+)
+reduce_lr = ReduceLROnPlateau(
+    monitor="loss", factor=0.5, patience=20, verbose=1, epsilon=1e-4, mode="min"
+)
 
 # Entrenar modelo
 # Número de épocas de entrenamiento
-EPOCHS = 30
-
-history = model.fit(
-    train_ds,
-    validation_data=val_ds,
-    epochs=EPOCHS,
-    batch_size=BATCH_SIZE
-)
+EPOCHS = 200
+try:
+    # Entrena el modelo
+    history = model.fit(
+        train_ds,
+        validation_data=val_ds,
+        epochs=EPOCHS,
+        batch_size=BATCH_SIZE,
+        callbacks=[checkpoint_acc, reduce_lr, early_stopping],
+    )
+except KeyboardInterrupt:
+    print("Interrumpido por teclado...")
+    exit()
 
 # Grafica la precisión y pérdida de entrenamiento y validación
 acc = history.history['accuracy']

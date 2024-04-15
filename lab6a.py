@@ -7,6 +7,20 @@ from tensorflow.python.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 import matplotlib.pyplot as plt
 from PIL import Image
 
+# Configurar para que TensorFlow utilice la GPU por defecto
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        # Configurar para que TensorFlow asigne memoria dinámicamente
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        # Especificar la GPU por defecto
+        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        # Manejar error
+        print(e)
+
 # Directorio de los datos
 TRAIN_DATA_DIRECTORY = Path("dataset/train")
 VALIDATION_DATA_DIRECTORY = Path("dataset/validation")
