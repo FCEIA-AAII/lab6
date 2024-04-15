@@ -94,7 +94,7 @@ model.compile(
     metrics=['accuracy']
 )
 
-print(model.summary())
+model.summary()
 
 # Entrenar modelo
 # Número de épocas de entrenamiento
