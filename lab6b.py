@@ -1,9 +1,11 @@
+# Lab 6b - Clasificacion de imágenes con transfer learning
+# El objetivo de este laboratorio es entrenar un clasificador de imagenes usando transfer learning para el siguiente dataset:
+# https://storage.googleapis.com/mledu-datasets/cats_and_dogs_filtered.zip
+
 import numpy as np
 from pathlib import Path
 import tensorflow as tf
-from keras.layers import Input, RandomFlip, RandomContrast, RandomTranslation, Flatten, Dropout
-from keras.layers import Dense, Conv2D, Activation, MaxPooling2D, Rescaling
-from tensorflow.python.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping 
+from keras.layers import Input, Dense, GlobalMaxPooling2D
 import matplotlib.pyplot as plt
 from PIL import Image
 
@@ -37,21 +39,22 @@ train_ds = tf.keras.utils.image_dataset_from_directory(
     TRAIN_DATA_DIRECTORY,
     label_mode="categorical",
     image_size=(IMAGE_HEIGHT, IMAGE_WIDTH),
-    batch_size=BATCH_SIZE)
+    batch_size=BATCH_SIZE
+)
 
 val_ds = tf.keras.utils.image_dataset_from_directory(
     VALIDATION_DATA_DIRECTORY,
     label_mode="categorical",
     image_size=(IMAGE_HEIGHT, IMAGE_WIDTH),
-    batch_size=BATCH_SIZE)
+    batch_size=BATCH_SIZE
+)
 
-## Inspeccionar clases
 # Obtiene los nombres de las clases
 class_names = train_ds.class_names
 num_classes = len(class_names)
 print(class_names)
 
-## Reducimos el tamaño del dataset para emular un escenario real donde no tenemos muchos datos
+# Reducimos el tamaño del dataset para emular un escenario real donde no tenemos muchos datos
 train_ds = train_ds.take(200)
 val_ds = val_ds.take(100)
 
@@ -67,39 +70,20 @@ for images, labels in train_ds.take(1):
 plt.show()
 
 ## Definir arquitectura de la red
-# Función para construir el modelo
-def build_model(input_shape, output_labels):
-    i = Input(input_shape, dtype=tf.float32)
+def build_model(input_shape, num_classes):
+    base_model = tf.keras.applications.EfficientNetB0(
+        input_shape=input_shape,
+        include_top=False,
+        weights='imagenet'
+    )
+    base_model.trainable = False
 
-    x = Rescaling(1./255)(i)
-    x = RandomFlip("horizontal")(x)
-    x = RandomFlip("vertical")(x)
-    x = RandomTranslation(0.1, 0.1, fill_mode="reflect")(x)
-    x = RandomContrast(0.2)(x)
+    i = Input(shape=input_shape)
+    x = base_model(i, training=False)
+    x = GlobalMaxPooling2D()(x)
+    x = Dense(num_classes, activation='softmax')(x)
 
-    x = Conv2D(8, (3, 3))(x)
-    x = Activation("relu")(x)
-
-    x = Conv2D(16, (3, 3))(x)
-    x = Activation("relu")(x)
-
-    x = MaxPooling2D((2, 2))(x)
-
-    x = Conv2D(32, (3, 3))(x)
-    x = Activation("relu")(x)
-
-    x = MaxPooling2D((2, 2))(x)
-
-    x = Conv2D(64, (3, 3))(x)
-    x = Activation("relu")(x)
-
-    x = MaxPooling2D((2, 2))(x)
-
-    x = Flatten()(x)
-    x = Dropout(0.3)(x)
-    x = Dense(output_labels)(x)
-    x = Activation("softmax")(x)
-    return tf.keras.Model(inputs=[i], outputs=[x])
+    return tf.keras.Model(i, x)
 
 print("Building model")
 model = build_model((IMAGE_HEIGHT, IMAGE_WIDTH, 3), num_classes)
@@ -110,28 +94,17 @@ model.compile(
     metrics=['accuracy']
 )
 
-# Entrenar modelo
-early_stopping = EarlyStopping(monitor="val_loss", patience=10, verbose=0, mode="min")
-checkpoint_acc = ModelCheckpoint(
-    "model-e{epoch:02d}-loss{val_loss:.3f}-acc{val_accuracy:.3f}",
-    save_best_only=True,
-    monitor="val_accuracy",
-    initial_value_threshold=0.7,
-    mode="max",
-)
-reduce_lr = ReduceLROnPlateau(
-    monitor="loss", factor=0.5, patience=20, verbose=1, epsilon=1e-4, mode="min"
-)
+print(model.summary())
 
+# Entrenar modelo
 # Número de épocas de entrenamiento
-EPOCHS = 200
+EPOCHS = 30
 
 history = model.fit(
     train_ds,
     validation_data=val_ds,
     epochs=EPOCHS,
-    batch_size=BATCH_SIZE,
-    callbacks=[checkpoint_acc, reduce_lr, early_stopping],
+    batch_size=BATCH_SIZE
 )
 
 # Grafica la precisión y pérdida de entrenamiento y validación
